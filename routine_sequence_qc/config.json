@@ -1,0 +1,9 @@
+{
+    "name": "BCCDC-PHL/routine-sequence-qc-nf",
+    "revision": "standardize-input-output",
+    "pipeline_params": {
+	"input": null,
+	"output": null
+    },
+    "working_directory": "."
+}
