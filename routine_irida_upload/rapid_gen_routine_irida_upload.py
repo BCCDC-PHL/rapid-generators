@@ -62,7 +62,7 @@ def main(args):
     }
 
     input_dir_exclusion_criteria = {
-        'upload_log_exists': lambda input_dir: os.path.exists(os.path.join(input_dir, 'irida-uploader.log')),
+        'upload_log_exists': lambda input_dir: os.path.exists(os.path.join(input_dir, 'IRIDAUploaderLogs')),
         'before_start_date': lambda input_dir: datetime.datetime(int("20" + os.path.basename(input_dir)[0:2]),
                                                                  int(os.path.basename(input_dir)[3:4]),
                                                                  int(os.path.basename(input_dir)[5:6])) < \
@@ -104,6 +104,7 @@ def main(args):
 
         pipeline_config['flagged_arguments']['--cache'] = os.path.expandvars("${HOME}/.conda/envs")
         pipeline_config['flagged_arguments']['--run_dir'] = os.path.abspath(input_dir)
+        pipeline_config['flagged_arguments']['--outdir'] = os.path.join(os.path.abspath(input_dir), "IRIDAUploaderLogs")
         pipeline_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
         print(json.dumps(pipeline_config))
 
