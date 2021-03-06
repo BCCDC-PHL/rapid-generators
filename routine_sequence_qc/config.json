@@ -1,13 +1,24 @@
 {
-    "name": "BCCDC-PHL/routine-sequence-qc",
-    "revision": "v0.1.2",
-    "pipeline_params": {
-	"run_dir": null,
-	"outdir": null
+    "timestamp_command_created": null,
+    "command_id": null,
+    "base_command": "nextflow",
+    "subcommand": "run",
+    "positional_arguments_before_flagged_arguments": [
+	"BCCDC-PHL/routine-sequence-qc"
+    ],
+    "flagged_arguments": {
+	"-profile": "conda",
+	"--cache": null,
+	"-revision": "v0.1.2",
+	"-with-trace": null,
+	"-with-report": null,
+	"-work-dir": null,
+	"--run_dir": null,
+	"--outdir": null
     },
-    "pipeline_launch_dir": null,
-    "remove_pipeline_work_dir": true,
-    "remove_nextflow_logs": true,
-    "create_trace": true,
-    "create_report": true
+    "command_invocation_directory": null,
+    "cleanup_options": {
+	"remove_pipeline_work_directory": true,
+	"remove_nextflow_logs": true
+    }
 }

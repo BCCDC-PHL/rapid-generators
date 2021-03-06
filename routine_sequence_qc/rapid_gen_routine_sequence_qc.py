@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import uuid
 
 
 def include_input_dirs(input_dirs, inclusion_criteria):
@@ -79,11 +80,34 @@ def main(args):
 
     generate_output_param = lambda x: os.path.join(x['input'], 'RoutineQC')
 
+    pipeline_name = pipeline_config['positional_arguments_before_flagged_arguments'][0]
+
     for input_dir in input_dirs_to_analyze:
-        pipeline_config['pipeline_params']['run_dir'] = os.path.abspath(input_dir)
-        pipeline_config['pipeline_params']['outdir'] = os.path.abspath(generate_output_param({"input": input_dir}))
-        pipeline_config['pipeline_launch_dir'] = os.path.abspath(input_dir)
-        
+        command_id = str(uuid.uuid4())
+        pipeline_config['command_id'] = command_id
+        pipeline_config['command_invocation_directory'] = os.path.abspath(input_dir)
+        this_second_iso8601_str = datetime.datetime.now().strftime('%Y-%m-%dT%H%M%S') 
+        today_iso8601_str = this_second_iso8601_str.split('T')[0]
+        pipeline_run_id = pipeline_name.replace('/', '_') + "." + command_id
+
+        if '-with-trace' in pipeline_config['flagged_arguments']:
+            trace_dir = os.path.join(pipeline_config['command_invocation_directory'], "rapid_analysis_logs", "nextflow_traces")
+            trace_filename = this_second_iso8601_str + "." + pipeline_run_id + ".trace.txt"
+            pipeline_config['flagged_arguments']['-with-trace'] = os.path.join(trace_dir, trace_filename)
+
+        if '-with-report' in pipeline_config['flagged_arguments']:
+            report_dir = os.path.join(pipeline_config['command_invocation_directory'], "rapid_analysis_logs", "nextflow_reports")
+            report_filename = this_second_iso8601_str + "." + pipeline_run_id + ".report.html"
+            pipeline_config['flagged_arguments']['-with-report'] = os.path.join(report_dir, report_filename)
+
+        if '-work-dir' in pipeline_config['flagged_arguments']:
+            work_dir = os.path.join(pipeline_config['command_invocation_directory'], "work." + pipeline_run_id)
+            pipeline_config['flagged_arguments']['-work-dir'] = work_dir
+
+        pipeline_config['flagged_arguments']['--cache'] = os.path.expandvars("${HOME}/.conda/envs")
+        pipeline_config['flagged_arguments']['--run_dir'] = os.path.abspath(input_dir)
+        pipeline_config['flagged_arguments']['--outdir'] = os.path.abspath(generate_output_param({"input": input_dir}))
+        pipeline_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
         print(json.dumps(pipeline_config))
 
 
