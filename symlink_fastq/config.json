@@ -1,0 +1,15 @@
+{
+    "timestamp_command_created": null,
+    "command_id": null,
+    "base_command": "ln",
+    "flags": [
+	"-s",
+	"-f",
+	"-n"
+    ],
+    "positional_arguments_after_flagged_arguments": [
+	null,
+	null
+    ],
+    "command_invocation_directory": null
+}
