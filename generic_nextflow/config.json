@@ -1,0 +1,22 @@
+{
+    "timestamp_command_created": null,
+    "command_id": null,
+    "base_command": "nextflow",
+    "subcommand": "run",
+    "positional_arguments_before_flagged_arguments": [
+	null
+    ],
+    "flagged_arguments": {
+	"-profile": null,
+	"--cache": null,
+	"-revision": null,
+	"-with-trace": null,
+	"-with-report": null,
+	"-work-dir": null
+    },
+    "command_invocation_directory": null,
+    "cleanup_options": {
+	"remove_pipeline_work_directory": true,
+	"remove_nextflow_logs": true
+    }
+}
