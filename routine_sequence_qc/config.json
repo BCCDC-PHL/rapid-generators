@@ -1,9 +1,13 @@
 {
-    "name": "BCCDC-PHL/routine-sequence-qc-nf",
-    "revision": "standardize-input-output",
+    "name": "BCCDC-PHL/routine-sequence-qc",
+    "revision": "v0.1.2",
     "pipeline_params": {
-	"input": null,
-	"output": null
+	"run_dir": null,
+	"outdir": null
     },
-    "working_directory": "."
+    "pipeline_launch_dir": null,
+    "remove_pipeline_work_dir": true,
+    "remove_nextflow_logs": true,
+    "create_trace": true,
+    "create_report": true
 }

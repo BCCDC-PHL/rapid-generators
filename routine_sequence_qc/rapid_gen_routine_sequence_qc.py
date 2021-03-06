@@ -47,10 +47,8 @@ def exclude_input_dirs(input_dirs, exclusion_criteria):
 
 def main(args):
 
-    with open(args.pipeline_config_template, 'r') as f:
+    with open(args.config, 'r') as f:
         pipeline_config = json.load(f)
-
-    assert args.instrument_type in {'miseq', 'nextseq'}
 
     instrument_run_dir_regexes = {
         'miseq': '\d{6}_[A-Z0-9]{6}_\d{4}_\d{9}-[A-Z0-9]{5}',
@@ -58,7 +56,7 @@ def main(args):
     }
 
     input_dir_inclusion_criteria = {
-        'input_dir_regex_match': lambda input_dir: re.match(instrument_run_dir_regexes[args.instrument_type], os.path.basename(input_dir)),
+        'input_dir_regex_match': lambda input_dir: re.match(instrument_run_dir_regexes['miseq'], os.path.basename(input_dir)) or re.match(instrument_run_dir_regexes['nextseq'], os.path.basename(input_dir)),
         'upload_complete': lambda input_dir: os.path.isfile(os.path.join(input_dir, 'COPY_COMPLETE')),
     }
 
@@ -82,18 +80,17 @@ def main(args):
     generate_output_param = lambda x: os.path.join(x['input'], 'RoutineQC')
 
     for input_dir in input_dirs_to_analyze:
-        pipeline_config['pipeline_params']['input'] = os.path.abspath(input_dir)
-        pipeline_config['pipeline_params']['output'] = os.path.abspath(generate_output_param({"input": input_dir}))
-        pipeline_config['working_directory'] = os.path.abspath(input_dir)
+        pipeline_config['pipeline_params']['run_dir'] = os.path.abspath(input_dir)
+        pipeline_config['pipeline_params']['outdir'] = os.path.abspath(generate_output_param({"input": input_dir}))
+        pipeline_config['pipeline_launch_dir'] = os.path.abspath(input_dir)
         
         print(json.dumps(pipeline_config))
 
 
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--input-parent-dir", help="Parent directory under which input directories are stored")
-    parser.add_argument("--pipeline-config-template", help="JSON-formatted template for pipeline configurations")
-    parser.add_argument("--instrument-type", default="miseq", help="type of sequencing instrument that generated the runs (must be 'miseq' or 'nextseq')")
-    parser.add_argument("--starting-from", default="1970-01-01", help="Earliest date of run to analyze.")
+    parser.add_argument("-i", "--input-parent-dir", required=True, help="Parent directory under which input directories are stored")
+    parser.add_argument("-c", "--config", required=True, help="JSON-formatted template for pipeline configurations")
+    parser.add_argument("-s", "--starting-from", default="1970-01-01", help="Earliest date of run to analyze.")
     args = parser.parse_args()
     main(args)
