@@ -1,0 +1,30 @@
+{
+    "timestamp_command_created": null,
+    "command_id": null,
+    "base_command": "nextflow",
+    "subcommand": "run",
+    "positional_arguments_before_flagged_arguments": [
+	"BCCDC-PHL/ncov2019-artic-nf"
+    ],
+    "flagged_arguments": {
+	"-profile": "conda",
+	"-revision": "v1.1.1",
+	"-with-trace": null,
+	"-with-report": null,
+	"-with-timeline": null,
+	"-work-dir": null,
+	"--cache": null,
+	"--prefix": null,
+	"--ref": null,
+	"--bed": null,
+	"--primer_pairs_tsv": null,
+	"--composite_ref": null,
+	"--directory": null,
+	"--outdir": null
+    },
+    "command_invocation_directory": null,
+    "cleanup_options": {
+	"remove_pipeline_work_directory": true,
+	"remove_nextflow_logs": true
+    }
+}
