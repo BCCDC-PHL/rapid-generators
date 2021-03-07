@@ -7,9 +7,7 @@
 	"-f",
 	"-n"
     ],
-    "positional_arguments_after_flagged_arguments": [
-	null,
-	null
+    "positional_arguments": [
     ],
     "command_invocation_directory": null
 }

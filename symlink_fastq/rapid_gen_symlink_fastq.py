@@ -51,7 +51,7 @@ def exclude_inputs(context, inputs, exclusion_criteria):
 def main(args):
 
     with open(args.config, 'r') as f:
-        pipeline_config = json.load(f)
+        command_config = json.load(f)
 
     instrument_run_dir_regexes = {
         'miseq': '\d{6}_[A-Z0-9]{6}_\d{4}_\d{9}-[A-Z0-9]{5}',
@@ -64,11 +64,11 @@ def main(args):
     }
 
     input_exclusion_criteria = {
-        'output_dir_exists': lambda c: os.path.exists(os.path.join(c['input'], 'RoutineQC')),
-        'before_start_date': lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                                                                 int(os.path.basename(c['input'])[3:4]),
-                                                                 int(os.path.basename(c['input'])[5:6])) < \
-        datetime.datetime(int(args.starting_from.split('-')[0]), int(args.starting_from.split('-')[1]), int(args.starting_from.split('-')[2])) 
+        # 'output_dir_exists': lambda c: os.path.exists(os.path.join(c['input'], 'RoutineQC')),
+        # 'before_start_date': lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
+        #                                                          int(os.path.basename(c['input'])[3:4]),
+        #                                                          int(os.path.basename(c['input'])[5:6])) < \
+        # datetime.datetime(int(args.starting_from.split('-')[0]), int(args.starting_from.split('-')[1]), int(args.starting_from.split('-')[2])) 
     }
     
     # Generate list of existing directories in args.input_parent_dir
@@ -78,40 +78,51 @@ def main(args):
     context = {}
     context, candidate_inputs = include_inputs(context, input_subdirs, input_inclusion_criteria)
 
-    # Find runs that haven't already been analyzed
     context, selected_inputs = exclude_inputs(context, candidate_inputs, input_exclusion_criteria)
 
-    generate_output_param = lambda x: os.path.join(x['input'], 'RoutineQC')
+    generate_output = lambda c: os.path.join(".")
 
     for i in selected_inputs:
-        command_id = str(uuid.uuid4())
-        command_config['command_id'] = command_id
-        command_config['command_invocation_directory'] = os.path.abspath(input_dir)
-        this_second_iso8601_str = datetime.datetime.now().strftime('%Y-%m-%dT%H%M%S') 
-        today_iso8601_str = this_second_iso8601_str.split('T')[0]
+        if args.output_parent_dir:
+            command_config['command_invocation_directory'] = os.path.abspath(os.path.join(args.output_parent_dir, os.path.basename(i)))
+        elif args.output_dir:
+            command_config['command_invocation_directory'] = os.path.abspath(args.output_dir)
 
+        if not os.path.exists(command_config['command_invocation_directory']):
+            stashed_command_config = command_config
+            command_config = {}
+            command_config['command_id'] = str(uuid.uuid4())
+            command_config['base_command'] = "mkdir"
+            command_config['flags'] = ["-p"]
+            command_config['positional_arguments'] = [stashed_command_config['command_invocation_directory']]
+            command_config['command_invocation_directory'] = "."
+            command_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
+            print(json.dumps(command_config))
+            command_config = stashed_command_config
+        
         miseq_fastq_dir_path = os.path.join("Data", "Intensities", "BaseCalls")
         nextseq_analysis_number = 1
         nextseq_fastq_dir_path = os.path.join("Analysis", str(nextseq_analysis_number), "Data", "fastq")
 
         fastq_glob = os.path.join(os.path.abspath(i), miseq_fastq_dir_path, "*.fastq.gz")
+        fastq_paths = glob.glob(fastq_glob)
 
-        if 'positional_arguments' in command_config and command_config['positional_arguments']:
-            command_config['positional_arguments'].append(fastq_glob)
-        else:
-            command_config['positional_arguments'] = [fastq_glob]
+        for fastq_path in fastq_paths:
+            command_config['command_id'] = str(uuid.uuid4())
+            command_config['positional_arguments'] = [fastq_path]
 
-        positional_arguments.append(".")
+            o = generate_output(context)
+            command_config['positional_arguments'].append(o)
         
-        command_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
-        print(json.dumps(command_config))
+            command_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
+            print(json.dumps(command_config))
 
 
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-i", "--input-parent-dir", required=True, help="Parent directory under which input directories are stored")
-    parser.add_argument("-o", "--output-parent-dir", help="Parent directory under which input directories are stored")
-    parser.add_argument("--output-dir", help="Parent directory under which input directories are stored")
+    parser.add_argument("-o", "--output-parent-dir", help="Parent directory under which symlinks will be created")
+    parser.add_argument("--output-dir", help="Directory in which symlinks will be created")
     parser.add_argument("-c", "--config", required=True, help="JSON-formatted template for pipeline configurations")
     parser.add_argument("-s", "--starting-from", default="1970-01-01", help="Earliest date of run to analyze.")
     args = parser.parse_args()
