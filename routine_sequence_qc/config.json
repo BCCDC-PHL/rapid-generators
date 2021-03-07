@@ -1,6 +1,4 @@
 {
-    "timestamp_command_created": null,
-    "command_id": null,
     "base_command": "nextflow",
     "subcommand": "run",
     "positional_arguments_before_flagged_arguments": [
@@ -8,7 +6,7 @@
     ],
     "flagged_arguments": {
 	"-profile": "conda",
-	"--cache": null,
+	"--cache": "${HOME}/.conda/envs",
 	"-revision": "v0.1.2",
 	"-with-trace": null,
 	"-with-report": null,

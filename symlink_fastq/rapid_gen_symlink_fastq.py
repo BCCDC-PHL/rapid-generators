@@ -19,12 +19,15 @@ def include_inputs(context, inputs, inclusion_criteria):
     """
     selected_inputs = []
     for i in inputs:
-        context['input'] = i
-        criteria_met = [inclusion_criterion(context) for _ , inclusion_criterion in inclusion_criteria.items()]
-        if all(criteria_met):
-            selected_inputs.append(i)
+        context['input'] = os.path.abspath(i)
+        criteria_met = [{criterion_label: bool(inclusion_criterion(context))} for criterion_label, inclusion_criterion in inclusion_criteria.items()]
+        if all([list(criterion.values())[0] for criterion in criteria_met]):
+            selected_inputs.append(os.path.abspath(i))
         else:
             pass
+
+    context['selected_inputs'] = selected_inputs
+    context.pop('input', None)
 
     return context, selected_inputs
 
@@ -35,15 +38,17 @@ def exclude_inputs(context, inputs, exclusion_criteria):
     input: ["path/to/runs/201030_M00325_0255_000000000-G5T13", ...], {"criterion_name": lambda input_dir: predicate(input_dir), ...}}
     output: ["path/to/runs/201205_M00325_0282_000000000-G31A8", ...]
     """
-    
     selected_inputs = []
     for i in inputs:
-        context['input'] = i
-        criteria_met = [exclusion_criterion(context) for _, exclusion_criterion in exclusion_criteria.items()]
-        if any(criteria_met):
-            pass
+        context['input'] = os.path.abspath(i)
+        criteria_met = [{criterion_label: exclusion_criterion(context)} for criterion_label, exclusion_criterion in exclusion_criteria.items()]
+        if any([list(criterion.values())[0] for criterion in criteria_met]):
+            context['selected_inputs'] = context['selected_inputs'][1:]
         else:
             selected_inputs.append(i)
+
+    context.pop('input', None)
+    context['selected_inputs'] = selected_inputs
 
     return context, selected_inputs
 
@@ -51,7 +56,7 @@ def exclude_inputs(context, inputs, exclusion_criteria):
 def main(args):
 
     with open(args.config, 'r') as f:
-        command_config = json.load(f)
+        message = json.load(f)
 
     instrument_run_dir_regexes = {
         'miseq': '\d{6}_[A-Z0-9]{6}_\d{4}_\d{9}-[A-Z0-9]{5}',
@@ -59,16 +64,20 @@ def main(args):
     }
 
     input_inclusion_criteria = {
-        'input_dir_regex_match': lambda c: re.match(instrument_run_dir_regexes['miseq'], os.path.basename(c['input'])) or re.match(instrument_run_dir_regexes['nextseq'], os.path.basename(c['input'])),
+        'input_regex_match': lambda c: re.match(instrument_run_dir_regexes['miseq'], os.path.basename(c['input'])) or re.match(instrument_run_dir_regexes['nextseq'], os.path.basename(c['input'])),
         'upload_complete': lambda c: os.path.isfile(os.path.join(c['input'], 'COPY_COMPLETE')),
     }
 
     input_exclusion_criteria = {
-        # 'output_dir_exists': lambda c: os.path.exists(os.path.join(c['input'], 'RoutineQC')),
-        # 'before_start_date': lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-        #                                                          int(os.path.basename(c['input'])[3:4]),
-        #                                                          int(os.path.basename(c['input'])[5:6])) < \
-        # datetime.datetime(int(args.starting_from.split('-')[0]), int(args.starting_from.split('-')[1]), int(args.starting_from.split('-')[2])) 
+        'output_exists': lambda c: os.path.exists(os.path.join(c['output'], os.path.basename(c['selected_inputs'][0]))),
+        'before_start_date': lambda c: \
+        datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
+                          int(os.path.basename(c['input'])[3:4]),
+                          int(os.path.basename(c['input'])[5:6])) \
+        < \
+        datetime.datetime(int(args.starting_from.split('-')[0]),
+                          int(args.starting_from.split('-')[1]),
+                          int(args.starting_from.split('-')[2])) 
     }
     
     # Generate list of existing directories in args.input_parent_dir
@@ -76,30 +85,35 @@ def main(args):
     
     candidate_inputs = []
     context = {}
+    if args.output_parent_dir:
+        context['output'] = args.output_parent_dir
+    elif args.output_dir:
+        context['output'] = args.output_dir
     context, candidate_inputs = include_inputs(context, input_subdirs, input_inclusion_criteria)
 
     context, selected_inputs = exclude_inputs(context, candidate_inputs, input_exclusion_criteria)
 
     generate_output = lambda c: os.path.join(".")
-
+    
     for i in selected_inputs:
         if args.output_parent_dir:
-            command_config['command_invocation_directory'] = os.path.abspath(os.path.join(args.output_parent_dir, os.path.basename(i)))
+            message['command_invocation_directory'] = os.path.abspath(os.path.join(args.output_parent_dir, os.path.basename(i)))
         elif args.output_dir:
-            command_config['command_invocation_directory'] = os.path.abspath(args.output_dir)
+            message['command_invocation_directory'] = os.path.abspath(args.output_dir)
 
-        if not os.path.exists(command_config['command_invocation_directory']):
-            stashed_command_config = command_config
-            command_config = {}
-            command_config['command_id'] = str(uuid.uuid4())
-            command_config['base_command'] = "mkdir"
-            command_config['flags'] = ["-p"]
-            command_config['positional_arguments'] = [stashed_command_config['command_invocation_directory']]
-            command_config['command_invocation_directory'] = "."
-            command_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
-            print(json.dumps(command_config))
-            command_config = stashed_command_config
-        
+        if not os.path.exists(message['command_invocation_directory']):
+            stashed_message = message
+            message = {}
+            message["message_id"] = str(uuid.uuid4())
+            message["message_type"] = 'command'
+            message['base_command'] = "mkdir"
+            message['flags'] = ["-p"]
+            message['positional_arguments'] = [stashed_message['command_invocation_directory']]
+            message['command_invocation_directory'] = "."
+            message['timestamp_command_created'] = datetime.datetime.now().isoformat()
+            print(json.dumps(message))
+            message = stashed_message
+
         miseq_fastq_dir_path = os.path.join("Data", "Intensities", "BaseCalls")
         nextseq_analysis_number = 1
         nextseq_fastq_dir_path = os.path.join("Analysis", str(nextseq_analysis_number), "Data", "fastq")
@@ -108,14 +122,23 @@ def main(args):
         fastq_paths = glob.glob(fastq_glob)
 
         for fastq_path in fastq_paths:
-            command_config['command_id'] = str(uuid.uuid4())
-            command_config['positional_arguments'] = [fastq_path]
+            message["message_id"] = str(uuid.uuid4())
+            message["message_type"] = "command"
+            message['command_creation_id'] = str(uuid.uuid4())
+            message['positional_arguments'] = [fastq_path]
 
             o = generate_output(context)
-            command_config['positional_arguments'].append(o)
+            message['positional_arguments'].append(o)
         
-            command_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
-            print(json.dumps(command_config))
+            message['timestamp_command_created'] = datetime.datetime.now().isoformat()
+            print(json.dumps(message))
+
+        sentinel = {
+            "message_id": str(uuid.uuid4()),
+            "message_type": "sentinel",
+            "completion_marker_file": os.path.abspath(os.path.join(message['command_invocation_directory'], 'symlinks_complete.json'))
+        }
+        print(json.dumps(sentinel))
 
 
 if __name__ == '__main__':    
