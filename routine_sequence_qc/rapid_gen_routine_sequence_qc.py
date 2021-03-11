@@ -20,6 +20,7 @@ def include_inputs(context, inputs, inclusion_criteria):
     selected_inputs = []
     for i in inputs:
         context['input'] = i
+        print(json.dumps(os.path.basename(context['input'])))
         criteria_met = [inclusion_criterion(context) for _ , inclusion_criterion in inclusion_criteria.items()]
         if all(criteria_met):
             selected_inputs.append(i)
@@ -40,6 +41,10 @@ def exclude_inputs(context, inputs, exclusion_criteria):
     selected_inputs = []
     for i in inputs:
         context['input'] = i
+        print(json.dumps(os.path.basename(context['input'])))
+        print(json.dumps(int(os.path.basename(context['input'])[0:2])))
+        print(json.dumps(int(os.path.basename(context['input'])[2:4])))
+        print(json.dumps(int(os.path.basename(context['input'])[4:6])))
         criteria_met = [exclusion_criterion(context) for _, exclusion_criterion in exclusion_criteria.items()]
         if any(criteria_met):
             pass
@@ -70,16 +75,16 @@ def main(args):
     input_exclusion_criteria['output_dir_exists'] = lambda c: os.path.exists(os.path.join(c['input'], 'RoutineQC'))
     if args.after:
         input_exclusion_criteria['before_start_date'] = lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                                                                                    int(os.path.basename(c['input'])[3:4]),
-                                                                                    int(os.path.basename(c['input'])[5:6])) \
+                                                                                    int(os.path.basename(c['input'])[2:4]),
+                                                                                    int(os.path.basename(c['input'])[4:6])) \
                                                                                     < \
                                                                   datetime.datetime(int(args.after.split('-')[0]),
                                                                                     int(args.after.split('-')[1]),
                                                                                     int(args.after.split('-')[2])) 
     if args.before:
         input_exclusion_criteria['before_start_date'] = lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                                                                                    int(os.path.basename(c['input'])[3:4]),
-                                                                                    int(os.path.basename(c['input'])[5:6])) \
+                                                                                    int(os.path.basename(c['input'])[2:4]),
+                                                                                    int(os.path.basename(c['input'])[4:6])) \
                                                                                     > \
                                                                   datetime.datetime(int(args.before.split('-')[0]),
                                                                                     int(args.before.split('-')[1]),
@@ -131,7 +136,7 @@ def main(args):
         message['flagged_arguments']['--run_dir'] = os.path.abspath(i)
         message['flagged_arguments']['--outdir'] = os.path.abspath(generate_output_param({"input": i}))
         print(json.dumps(message))
-
+        
         sentinel = {
             "message_id": str(uuid.uuid4()),
             "correlation_id": correlation_id,
@@ -141,6 +146,8 @@ def main(args):
             }
         }
         print(json.dumps(sentinel))
+
+        message.pop('correlation_id', None)
 
 
 if __name__ == '__main__':    
