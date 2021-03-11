@@ -20,6 +20,7 @@ def include_inputs(context, inputs, inclusion_criteria):
     selected_inputs = []
     for i in inputs:
         context['input'] = os.path.abspath(i)
+        context['experiment_name'] = get_experiment_name(os.path.join(context['input'], "SampleSheet.csv"))
         criteria_met = [{criterion_label: bool(inclusion_criterion(context))} for criterion_label, inclusion_criterion in inclusion_criteria.items()]
         if all([list(criterion.values())[0] for criterion in criteria_met]):
             selected_inputs.append(os.path.abspath(i))
@@ -53,31 +54,58 @@ def exclude_inputs(context, inputs, exclusion_criteria):
     return context, selected_inputs
 
 
+def get_experiment_name(sample_sheet_path):
+    """
+    input: "/path/to/SampleSheet.csv"
+    output: "20210127-nCoVWGS-98A"
+    """
+    experiment_name = None
+    with open(sample_sheet_path, 'r') as f:
+    	for line in f:
+            if re.search(r'Experiment Name', line):
+                stripped_line = line.strip().rstrip(',')
+                experiment_name = stripped_line.split(',')[-1]
+    return experiment_name
+
+
 def main(args):
 
     with open(args.config, 'r') as f:
         message = json.load(f)
 
+    context = {}
+    
     instrument_run_dir_regexes = {
         'miseq': '\d{6}_[A-Z0-9]{6}_\d{4}_\d{9}-[A-Z0-9]{5}',
         'nextseq': '\d{6}_[A-Z0-9]{7}_\d+_[A-Z0-9]{9}',
     }
 
+    experiment_name_regex = "^\d+[-_]nCoVWGS([-_]\d+[ABCD]?)+$"
+
     input_inclusion_criteria = {
-        'input_regex_match': lambda c: re.match(instrument_run_dir_regexes['miseq'], os.path.basename(c['input'])) or re.match(instrument_run_dir_regexes['nextseq'], os.path.basename(c['input'])),
-        'upload_complete': lambda c: os.path.isfile(os.path.join(c['input'], 'COPY_COMPLETE')),
+        'input_regex_match': lambda c: re.match(c['instrument_run_dir_regexes']['miseq'], os.path.basename(c['input'])) or re.match(c['instrument_run_dir_regexes']['nextseq'], os.path.basename(c['input'])),
+        'experiment_name_regex_match': lambda c: re.match(c['experiment_name_regex'], c['experiment_name']), 
+        'upload_complete': lambda c: os.path.exists(os.path.join(c['input'], 'COPY_COMPLETE')) or os.path.exists(os.path.join(c['input'], 'upload_complete.json')),
     }
 
     input_exclusion_criteria = {
         'output_exists': lambda c: os.path.exists(os.path.join(c['output'], os.path.basename(c['selected_inputs'][0]))),
-        'before_start_date': lambda c: \
+        'too_old': lambda c: \
         datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
                           int(os.path.basename(c['input'])[3:4]),
                           int(os.path.basename(c['input'])[5:6])) \
         < \
-        datetime.datetime(int(args.starting_from.split('-')[0]),
-                          int(args.starting_from.split('-')[1]),
-                          int(args.starting_from.split('-')[2])) 
+        datetime.datetime(int(args.after.split('-')[0]),
+                          int(args.after.split('-')[1]),
+                          int(args.after.split('-')[2])),
+        'too_new': lambda c: \
+        datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
+                          int(os.path.basename(c['input'])[3:4]),
+                          int(os.path.basename(c['input'])[5:6])) \
+        > \
+        datetime.datetime(int(args.after.split('-')[0]),
+                          int(args.after.split('-')[1]),
+                          int(args.after.split('-')[2])),
     }
     
     # Generate list of existing directories in args.input_parent_dir
@@ -85,6 +113,9 @@ def main(args):
     
     candidate_inputs = []
     context = {}
+    context['experiment_name_regex'] = experiment_name_regex
+    context['instrument_run_dir_regexes'] = instrument_run_dir_regexes
+
     if args.output_parent_dir:
         context['output'] = args.output_parent_dir
     elif args.output_dir:
@@ -96,6 +127,7 @@ def main(args):
     generate_output = lambda c: os.path.join(".")
     
     for i in selected_inputs:
+        correlation_id = str(uuid.uuid4())
         if args.output_parent_dir:
             message['command_invocation_directory'] = os.path.abspath(os.path.join(args.output_parent_dir, os.path.basename(i)))
         elif args.output_dir:
@@ -105,7 +137,8 @@ def main(args):
             stashed_message = message
             message = {}
             message["message_id"] = str(uuid.uuid4())
-            message["message_type"] = 'command'
+            message["message_type"] = 'command_creation'
+            message["correlation_id"] = correlation_id
             message['base_command'] = "mkdir"
             message['flags'] = ["-p"]
             message['positional_arguments'] = [stashed_message['command_invocation_directory']]
@@ -123,8 +156,8 @@ def main(args):
 
         for fastq_path in fastq_paths:
             message["message_id"] = str(uuid.uuid4())
-            message["message_type"] = "command"
-            message['command_creation_id'] = str(uuid.uuid4())
+            message["message_type"] = "command_creation"
+            message['correlation_id'] = correlation_id
             message['positional_arguments'] = [fastq_path]
 
             o = generate_output(context)
@@ -135,8 +168,11 @@ def main(args):
 
         sentinel = {
             "message_id": str(uuid.uuid4()),
+            "correlation_id": correlation_id,
             "message_type": "sentinel",
-            "completion_marker_file": os.path.abspath(os.path.join(message['command_invocation_directory'], 'symlinks_complete.json'))
+            "context": {
+                "completion_marker_file": os.path.abspath(os.path.join(message['command_invocation_directory'], 'symlinks_complete.json')),
+            }
         }
         print(json.dumps(sentinel))
 
@@ -147,6 +183,7 @@ if __name__ == '__main__':
     parser.add_argument("-o", "--output-parent-dir", help="Parent directory under which symlinks will be created")
     parser.add_argument("--output-dir", help="Directory in which symlinks will be created")
     parser.add_argument("-c", "--config", required=True, help="JSON-formatted template for pipeline configurations")
-    parser.add_argument("-s", "--starting-from", default="1970-01-01", help="Earliest date of run to analyze.")
+    parser.add_argument("-b", "--before", default="1970-01-01", help="Earliest date of run to analyze.")
+    parser.add_argument("-a", "--after", default="1970-01-01", help="Earliest date of run to analyze.")
     args = parser.parse_args()
     main(args)

@@ -16,7 +16,7 @@
     },
     "command_invocation_directory": null,
     "cleanup_options": {
-	"remove_pipeline_work_directory": true,
-	"remove_nextflow_logs": true
+	"remove_command_tmp_directories": true,
+	"remove_command_logs": true
     }
 }

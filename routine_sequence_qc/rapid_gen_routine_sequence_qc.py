@@ -66,14 +66,25 @@ def main(args):
         'upload_complete': lambda c: os.path.isfile(os.path.join(c['input'], 'COPY_COMPLETE')),
     }
 
-    input_exclusion_criteria = {
-        'output_dir_exists': lambda c: os.path.exists(os.path.join(c['input'], 'RoutineQC')),
-        'before_start_date': lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                                                                 int(os.path.basename(c['input'])[3:4]),
-                                                                 int(os.path.basename(c['input'])[5:6])) < \
-        datetime.datetime(int(args.starting_from.split('-')[0]), int(args.starting_from.split('-')[1]), int(args.starting_from.split('-')[2])) 
-    }
-    
+    input_exclusion_criteria = {}
+    input_exclusion_criteria['output_dir_exists'] = lambda c: os.path.exists(os.path.join(c['input'], 'RoutineQC'))
+    if args.after:
+        input_exclusion_criteria['before_start_date'] = lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
+                                                                                    int(os.path.basename(c['input'])[3:4]),
+                                                                                    int(os.path.basename(c['input'])[5:6])) \
+                                                                                    < \
+                                                                  datetime.datetime(int(args.after.split('-')[0]),
+                                                                                    int(args.after.split('-')[1]),
+                                                                                    int(args.after.split('-')[2])) 
+    if args.before:
+        input_exclusion_criteria['before_start_date'] = lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
+                                                                                    int(os.path.basename(c['input'])[3:4]),
+                                                                                    int(os.path.basename(c['input'])[5:6])) \
+                                                                                    > \
+                                                                  datetime.datetime(int(args.before.split('-')[0]),
+                                                                                    int(args.before.split('-')[1]),
+                                                                                    int(args.before.split('-')[2]))
+
     # Generate list of existing directories in args.analysis_parent_dir
     input_subdirs = list(filter(os.path.isdir, [os.path.join(args.input_parent_dir, f) for f in os.listdir(args.input_parent_dir)]))
     
@@ -91,8 +102,11 @@ def main(args):
     for i in selected_inputs:
         message_id = str(uuid.uuid4())
         message["message_id"] = message_id
+        if 'correlation_id' not in message or not message['correlation_id']:
+            correlation_id = str(uuid.uuid4())
+            message["correlation_id"] = correlation_id
         message['timestamp_message_created'] = datetime.datetime.now().isoformat()
-        message["message_type"] = 'command'
+        message["message_type"] = 'command_creation'
         message['command_invocation_directory'] = os.path.abspath(i)
         this_second_iso8601_str = datetime.datetime.now().strftime('%Y-%m-%dT%H%M%S') 
         today_iso8601_str = this_second_iso8601_str.split('T')[0]
@@ -120,8 +134,11 @@ def main(args):
 
         sentinel = {
             "message_id": str(uuid.uuid4()),
+            "correlation_id": correlation_id,
             "message_type": "sentinel",
-            "completion_marker_file": os.path.abspath(os.path.join(i, 'RoutineQC', 'analysis_complete.json'))
+            "context": {
+                "completion_marker_file": os.path.abspath(os.path.join(i, 'RoutineQC', 'analysis_complete.json')),
+            }
         }
         print(json.dumps(sentinel))
 
@@ -129,7 +146,9 @@ def main(args):
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-i", "--input-parent-dir", required=True, help="Parent directory under which input directories are stored")
+    parser.add_argument("-e", "--experiment_name_regex", default="*", help="Regular expression to match in SampleSheet.csv 'Experiment name' field")
     parser.add_argument("-c", "--config", required=True, help="JSON-formatted template for pipeline configurations")
-    parser.add_argument("-s", "--starting-from", default="1970-01-01", help="Earliest date of run to analyze.")
+    parser.add_argument("-a", "--after", help="Earliest date of run to analyze.")
+    parser.add_argument("-b", "--before", help="Latest date of run to analyze.")
     args = parser.parse_args()
     main(args)
