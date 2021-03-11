@@ -49,7 +49,7 @@ def exclude_input_dirs(input_dirs, exclusion_criteria):
 def main(args):
 
     with open(args.config, 'r') as f:
-        pipeline_config = json.load(f)
+        message = json.load(f)
 
     instrument_run_dir_regexes = {
         'miseq': '\d{6}_[A-Z0-9]{6}_\d{4}_\d{9}-[A-Z0-9]{5}',
@@ -58,15 +58,11 @@ def main(args):
 
     input_dir_inclusion_criteria = {
         'input_dir_regex_match': lambda input_dir: re.match(instrument_run_dir_regexes['miseq'], os.path.basename(input_dir)) or re.match(instrument_run_dir_regexes['nextseq'], os.path.basename(input_dir)),
-        'upload_complete': lambda input_dir: os.path.isfile(os.path.join(input_dir, 'COPY_COMPLETE')),
+        'upload_complete': lambda input_dir: os.path.isfile(os.path.join(input_dir, 'COPY_COMPLETE')) or os.path.isfile(os.path.join(input_dir, 'upload_complete.json')),
     }
 
     input_dir_exclusion_criteria = {
         'upload_log_exists': lambda input_dir: os.path.exists(os.path.join(input_dir, 'IRIDAUploaderLogs')),
-        'before_start_date': lambda input_dir: datetime.datetime(int("20" + os.path.basename(input_dir)[0:2]),
-                                                                 int(os.path.basename(input_dir)[3:4]),
-                                                                 int(os.path.basename(input_dir)[5:6])) < \
-        datetime.datetime(int(args.starting_from.split('-')[0]), int(args.starting_from.split('-')[1]), int(args.starting_from.split('-')[2])) 
     }
     
     # Generate list of existing directories in args.input_parent_dir
@@ -76,43 +72,58 @@ def main(args):
     candidate_input_dirs = include_input_dirs(input_parent_dir_subdirs, input_dir_inclusion_criteria)
 
     # Find runs that haven't already been analyzed
-    input_dirs_to_upload = exclude_input_dirs(candidate_input_dirs, input_dir_exclusion_criteria)
+    selected_inputs = exclude_input_dirs(candidate_input_dirs, input_dir_exclusion_criteria)
 
-    pipeline_name = pipeline_config['positional_arguments_before_flagged_arguments'][0]
+    pipeline_name = message['positional_arguments_before_flagged_arguments'][0]
 
-    for input_dir in input_dirs_to_upload:
-        command_id = str(uuid.uuid4())
-        pipeline_config['command_id'] = command_id
-        pipeline_config['command_invocation_directory'] = os.path.abspath(input_dir)
+    for i in selected_inputs:
+        message_id = str(uuid.uuid4())
+        message['message_id'] = message_id
+        if 'correlation_id' not in message or not message['correlation_id']:
+            correlation_id = str(uuid.uuid4())
+            message["correlation_id"] = correlation_id
+        message['message_type'] = 'command_creation'
+        message['command_invocation_directory'] = os.path.abspath(i)
         this_second_iso8601_str = datetime.datetime.now().strftime('%Y-%m-%dT%H%M%S') 
         today_iso8601_str = this_second_iso8601_str.split('T')[0]
-        pipeline_run_id = pipeline_name.replace('/', '_') + "." + command_id
+        pipeline_run_id = pipeline_name.replace('/', '_') + "." + message_id
 
-        if '-with-trace' in pipeline_config['flagged_arguments']:
-            trace_dir = os.path.join(pipeline_config['command_invocation_directory'], "rapid_analysis_logs", "nextflow_traces")
+        if '-with-trace' in message['flagged_arguments']:
+            trace_dir = os.path.join(message['command_invocation_directory'], "rapid_analysis_logs", "nextflow_traces")
             trace_filename = this_second_iso8601_str + "." + pipeline_run_id + ".trace.txt"
-            pipeline_config['flagged_arguments']['-with-trace'] = os.path.join(trace_dir, trace_filename)
+            message['flagged_arguments']['-with-trace'] = os.path.join(trace_dir, trace_filename)
 
-        if '-with-report' in pipeline_config['flagged_arguments']:
-            report_dir = os.path.join(pipeline_config['command_invocation_directory'], "rapid_analysis_logs", "nextflow_reports")
+        if '-with-report' in message['flagged_arguments']:
+            report_dir = os.path.join(message['command_invocation_directory'], "rapid_analysis_logs", "nextflow_reports")
             report_filename = this_second_iso8601_str + "." + pipeline_run_id + ".report.html"
-            pipeline_config['flagged_arguments']['-with-report'] = os.path.join(report_dir, report_filename)
+            message['flagged_arguments']['-with-report'] = os.path.join(report_dir, report_filename)
 
-        if '-work-dir' in pipeline_config['flagged_arguments']:
-            work_dir = os.path.join(pipeline_config['command_invocation_directory'], "work." + pipeline_run_id)
-            pipeline_config['flagged_arguments']['-work-dir'] = work_dir
+        if '-work-dir' in message['flagged_arguments']:
+            work_dir = os.path.join(message['command_invocation_directory'], "work." + pipeline_run_id)
+            message['flagged_arguments']['-work-dir'] = work_dir
 
-        pipeline_config['flagged_arguments']['--cache'] = os.path.expandvars("${HOME}/.conda/envs")
-        pipeline_config['flagged_arguments']['--run_dir'] = os.path.abspath(input_dir)
-        pipeline_config['flagged_arguments']['--outdir'] = os.path.join(os.path.abspath(input_dir), "IRIDAUploaderLogs")
-        pipeline_config['timestamp_command_created'] = datetime.datetime.now().isoformat()
-        print(json.dumps(pipeline_config))
+        message['flagged_arguments']['--cache'] = os.path.expandvars("${HOME}/.conda/envs")
+        message['flagged_arguments']['--run_dir'] = os.path.abspath(i)
+        message['flagged_arguments']['--outdir'] = os.path.join(os.path.abspath(i), "IRIDAUploaderLogs")
+        message['timestamp_created'] = datetime.datetime.now().isoformat()
+        print(json.dumps(message))
+        
+        sentinel = {
+            "message_id": str(uuid.uuid4()),
+            "correlation_id": correlation_id,
+            "message_type": "sentinel",
+            "context": {
+                "completion_marker_file": os.path.abspath(os.path.join(i, 'IRIDAUploaderLogs', 'upload_complete.json')),
+            }
+        }
+        print(json.dumps(sentinel))
+
+        message.pop('correlation_id', None)
 
 
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-i", "--input-parent-dir", required=True, help="Parent directory under which input directories are stored")
     parser.add_argument("-c", "--config", required=True, help="JSON-formatted template for pipeline configurations")
-    parser.add_argument("-s", "--starting-from", default="1970-01-01", help="Earliest date of run to analyze.")
     args = parser.parse_args()
     main(args)
