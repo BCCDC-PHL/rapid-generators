@@ -20,7 +20,6 @@ def include_inputs(context, inputs, inclusion_criteria):
     selected_inputs = []
     for i in inputs:
         context['input'] = i
-        print(json.dumps(os.path.basename(context['input'])))
         criteria_met = [inclusion_criterion(context) for _ , inclusion_criterion in inclusion_criteria.items()]
         if all(criteria_met):
             selected_inputs.append(i)
@@ -41,10 +40,6 @@ def exclude_inputs(context, inputs, exclusion_criteria):
     selected_inputs = []
     for i in inputs:
         context['input'] = i
-        print(json.dumps(os.path.basename(context['input'])))
-        print(json.dumps(int(os.path.basename(context['input'])[0:2])))
-        print(json.dumps(int(os.path.basename(context['input'])[2:4])))
-        print(json.dumps(int(os.path.basename(context['input'])[4:6])))
         criteria_met = [exclusion_criterion(context) for _, exclusion_criterion in exclusion_criteria.items()]
         if any(criteria_met):
             pass
