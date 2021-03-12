@@ -96,7 +96,7 @@ def main(args):
         pipeline_run_id = pipeline_name.replace('/', '_') + "." + message_id
 
         if '-with-trace' in message['flagged_arguments']:
-            trace_dir = os.path.join(message['command_invocation_directory'], "RAPIDAnalysislogs", "nextflow_traces")
+            trace_dir = os.path.join(message['command_invocation_directory'], "RAPIDAnalysisLogs", "nextflow_traces")
             trace_filename = this_second_iso8601_str + "." + pipeline_run_id + ".trace.txt"
             message['flagged_arguments']['-with-trace'] = os.path.join(trace_dir, trace_filename)
 
