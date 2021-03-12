@@ -67,23 +67,6 @@ def main(args):
     }
 
     input_exclusion_criteria = {}
-    input_exclusion_criteria['output_dir_exists'] = lambda c: os.path.exists(os.path.join(c['input'], 'RoutineQC'))
-    if args.after:
-        input_exclusion_criteria['before_start_date'] = lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                                                                                    int(os.path.basename(c['input'])[2:4]),
-                                                                                    int(os.path.basename(c['input'])[4:6])) \
-                                                                                    < \
-                                                                  datetime.datetime(int(args.after.split('-')[0]),
-                                                                                    int(args.after.split('-')[1]),
-                                                                                    int(args.after.split('-')[2])) 
-    if args.before:
-        input_exclusion_criteria['before_start_date'] = lambda c: datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                                                                                    int(os.path.basename(c['input'])[2:4]),
-                                                                                    int(os.path.basename(c['input'])[4:6])) \
-                                                                                    > \
-                                                                  datetime.datetime(int(args.before.split('-')[0]),
-                                                                                    int(args.before.split('-')[1]),
-                                                                                    int(args.before.split('-')[2]))
 
     # Generate list of existing directories in args.analysis_parent_dir
     input_subdirs = list(filter(os.path.isdir, [os.path.join(args.input_parent_dir, f) for f in os.listdir(args.input_parent_dir)]))
