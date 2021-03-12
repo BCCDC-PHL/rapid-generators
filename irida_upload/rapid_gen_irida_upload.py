@@ -62,7 +62,6 @@ def main(args):
     }
 
     input_dir_exclusion_criteria = {
-        'upload_log_exists': lambda input_dir: os.path.exists(os.path.join(input_dir, 'IRIDAUploaderLogs')),
     }
     
     # Generate list of existing directories in args.input_parent_dir
