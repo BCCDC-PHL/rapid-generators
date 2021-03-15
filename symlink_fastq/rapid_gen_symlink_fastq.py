@@ -72,48 +72,27 @@ def main(args):
 
     with open(args.config, 'r') as f:
         message = json.load(f)
-
-    context = {}
     
     instrument_run_dir_regexes = {
         'miseq': '\d{6}_[A-Z0-9]{6}_\d{4}_\d{9}-[A-Z0-9]{5}',
         'nextseq': '\d{6}_[A-Z0-9]{7}_\d+_[A-Z0-9]{9}',
     }
 
-    experiment_name_regex = "^\d+[-_]nCoVWGS([-_]\d+[ABCD]?)+$"
 
     input_inclusion_criteria = {
         'input_regex_match': lambda c: re.match(c['instrument_run_dir_regexes']['miseq'], os.path.basename(c['input'])) or re.match(c['instrument_run_dir_regexes']['nextseq'], os.path.basename(c['input'])),
-        'experiment_name_regex_match': lambda c: re.match(c['experiment_name_regex'], c['experiment_name']), 
         'upload_complete': lambda c: os.path.exists(os.path.join(c['input'], 'COPY_COMPLETE')) or os.path.exists(os.path.join(c['input'], 'upload_complete.json')),
     }
 
-    input_exclusion_criteria = {
-        'output_exists': lambda c: os.path.exists(os.path.join(c['output'], os.path.basename(c['selected_inputs'][0]))),
-        'too_old': lambda c: \
-        datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                          int(os.path.basename(c['input'])[3:4]),
-                          int(os.path.basename(c['input'])[5:6])) \
-        < \
-        datetime.datetime(int(args.after.split('-')[0]),
-                          int(args.after.split('-')[1]),
-                          int(args.after.split('-')[2])),
-        'too_new': lambda c: \
-        datetime.datetime(int("20" + os.path.basename(c['input'])[0:2]),
-                          int(os.path.basename(c['input'])[3:4]),
-                          int(os.path.basename(c['input'])[5:6])) \
-        > \
-        datetime.datetime(int(args.after.split('-')[0]),
-                          int(args.after.split('-')[1]),
-                          int(args.after.split('-')[2])),
-    }
+    input_exclusion_criteria = {}
+
+    rename_fn = lambda f: '_'.join([f[:f.index('.')].split('_')[part] for part in [0, 3]]) + f[f.index('.'):]
     
     # Generate list of existing directories in args.input_parent_dir
     input_subdirs = list(filter(os.path.isdir, [os.path.join(args.input_parent_dir, f) for f in os.listdir(args.input_parent_dir)]))
     
     candidate_inputs = []
     context = {}
-    context['experiment_name_regex'] = experiment_name_regex
     context['instrument_run_dir_regexes'] = instrument_run_dir_regexes
 
     if args.output_parent_dir:
@@ -124,10 +103,12 @@ def main(args):
 
     context, selected_inputs = exclude_inputs(context, candidate_inputs, input_exclusion_criteria)
 
-    generate_output = lambda c: os.path.join(".")
+    generate_destination = lambda c: os.path.join(".", rename_fn(os.path.basename(c['source'])))
     
     for i in selected_inputs:
         correlation_id = str(uuid.uuid4())
+        run_id = os.path.basename(i)
+        experiment_name = get_experiment_name(os.path.join(i, 'SampleSheet.csv'))
         if args.output_parent_dir:
             message['command_invocation_directory'] = os.path.abspath(os.path.join(args.output_parent_dir, os.path.basename(i)))
         elif args.output_dir:
@@ -139,6 +120,9 @@ def main(args):
             message["message_id"] = str(uuid.uuid4())
             message["message_type"] = 'command_creation'
             message["correlation_id"] = correlation_id
+            message["metadata_context"] = {}
+            message["metadata_context"]["run_id"] = run_id
+            message["metadata_context"]["experiment_name"] = experiment_name
             message['base_command'] = "mkdir"
             message['flags'] = ["-p"]
             message['positional_arguments'] = [stashed_message['command_invocation_directory']]
@@ -158,10 +142,14 @@ def main(args):
             message["message_id"] = str(uuid.uuid4())
             message["message_type"] = "command_creation"
             message['correlation_id'] = correlation_id
+            message["metadata_context"] = {}
+            message["metadata_context"]["run_id"] = run_id
+            message["metadata_context"]["experiment_name"] = experiment_name
+            context['source'] = fastq_path
             message['positional_arguments'] = [fastq_path]
 
-            o = generate_output(context)
-            message['positional_arguments'].append(o)
+            destination = generate_destination(context)
+            message['positional_arguments'].append(destination)
         
             message['timestamp_command_created'] = datetime.datetime.now().isoformat()
             print(json.dumps(message))
