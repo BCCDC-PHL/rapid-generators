@@ -85,7 +85,6 @@ def main(args):
     
     for i in selected_inputs:
         run_id = os.path.basename(i)
-        experiment_name = get_experiment_name(os.path.join(i, 'SampleSheet.csv'))
         message_id = str(uuid.uuid4())
         message["message_id"] = message_id
         if 'correlation_id' not in message or not message['correlation_id']:
@@ -93,7 +92,6 @@ def main(args):
             message["correlation_id"] = correlation_id
         message["metadata_context"] = {}
         message["metadata_context"]["run_id"] = run_id
-        message["metadata_context"]["experiment_name"] = experiment_name
         message['timestamp_message_created'] = datetime.datetime.now().isoformat()
         message["message_type"] = 'command_creation'
         message['command_invocation_directory'] = os.path.abspath(i)
@@ -137,7 +135,6 @@ def main(args):
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-i", "--input-parent-dir", required=True, help="Parent directory under which input directories are stored")
-    parser.add_argument("-e", "--experiment_name_regex", default="*", help="Regular expression to match in SampleSheet.csv 'Experiment name' field")
     parser.add_argument("-c", "--config", required=True, help="JSON-formatted template for pipeline configurations")
     parser.add_argument("-a", "--after", help="Earliest date of run to analyze.")
     parser.add_argument("-b", "--before", help="Latest date of run to analyze.")
