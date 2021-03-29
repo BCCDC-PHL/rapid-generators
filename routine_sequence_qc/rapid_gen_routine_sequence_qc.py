@@ -63,7 +63,7 @@ def main(args):
 
     input_inclusion_criteria = {
         'input_dir_regex_match': lambda c: re.match(instrument_run_dir_regexes['miseq'], os.path.basename(c['input'])) or re.match(instrument_run_dir_regexes['nextseq'], os.path.basename(c['input'])),
-        'upload_complete': lambda c: os.path.isfile(os.path.join(c['input'], 'COPY_COMPLETE')),
+        'upload_complete': lambda c: os.path.isfile(os.path.join(c['input'], 'COPY_COMPLETE')) or os.path.isfile(os.path.join(c['input'], 'upload_complete.json')),
     }
 
     input_exclusion_criteria = {}
@@ -82,12 +82,18 @@ def main(args):
 
     pipeline_name = message['positional_arguments_before_flagged_arguments'][0]
 
+    
     for i in selected_inputs:
+        run_id = os.path.basename(i)
+        experiment_name = get_experiment_name(os.path.join(i, 'SampleSheet.csv'))
         message_id = str(uuid.uuid4())
         message["message_id"] = message_id
         if 'correlation_id' not in message or not message['correlation_id']:
             correlation_id = str(uuid.uuid4())
             message["correlation_id"] = correlation_id
+        message["metadata_context"] = {}
+        message["metadata_context"]["run_id"] = run_id
+        message["metadata_context"]["experiment_name"] = experiment_name
         message['timestamp_message_created'] = datetime.datetime.now().isoformat()
         message["message_type"] = 'command_creation'
         message['command_invocation_directory'] = os.path.abspath(i)
