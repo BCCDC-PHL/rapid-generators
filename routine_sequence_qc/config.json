@@ -7,7 +7,7 @@
     "flagged_arguments": {
 	"-profile": "conda",
 	"--cache": "${HOME}/.conda/envs",
-	"-revision": "v0.1.2",
+	"-revision": "v0.2.2",
 	"-with-trace": null,
 	"-with-report": null,
 	"-work-dir": null,
